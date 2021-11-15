@@ -1,0 +1,24 @@
+{
+  "name": "vchips-handlers",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+      "build": "tsc --build && webpack && cd build && zip -r index.zip webpack"
+  },
+  "dependencies": {
+      "@aws-sdk/client-apigatewaymanagementapi": "^3.25.0",
+      "@aws-sdk/client-dynamodb": "^3.25.0",
+      "@aws-sdk/client-sns": "^3.25.0",
+      "@aws-sdk/lib-dynamodb": "^3.25.0",
+      "bcryptjs": "^2.4.3",
+      "decimal.js": "^10.3.1"
+  },
+  "devDependencies": {
+      "@types/node": "^14.14.31",
+      "@types/bcryptjs": "^2.4.2",
+      "webpack": "^5.45.1",
+      "webpack-cli": "^4.7.2"
+  },
+  "author": "Dennis Mo",
+  "license": "ISC"
+}
