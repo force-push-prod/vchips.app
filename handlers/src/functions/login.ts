@@ -5,10 +5,10 @@ export async function handler(event: any) {
     // login user
     // generate user uuid
     const userId = crypto.randomUUID();
-    const currentTime = new Date().getTime();
+    const currentTime = new Date().getTime() / 1000;
     const user = {
         userId: userId,
-        ttl: currentTime + (2 * 60 * 60 * 1000) // 2 hour
+        ttl: currentTime + (12 * 60 * 60) // 12 hour
     }
     // store user in dynamoDB
     await dynamoDBDocumentClient.put({
@@ -18,6 +18,6 @@ export async function handler(event: any) {
 
     return {
         statusCode: 200,
-        body: JSON.stringify(user)
+        body: user
     }
 }

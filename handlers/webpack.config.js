@@ -4,6 +4,7 @@ module.exports = {
     entry: {
         "connect": "./connect.js",
         "login": "./login.js",
+        "createTable": "./createTable.js",
     },
     mode: "development",
     target: "node",
