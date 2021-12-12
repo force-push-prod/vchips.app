@@ -1,6 +1,6 @@
 type ChipAmount = number;
 type PlayerId = string;
-type GameRoundName = "pre-flop" | "flop" | "turn" | "river";
+type GameRoundName = "pre-flop" | "flop" | "turn" | "river" | "result";
 
 interface Player {
   id: PlayerId;
@@ -36,30 +36,18 @@ interface Pot {
   players: PlayerId[];
 }
 
-interface PotResult extends Pot {
-  winners: PlayerId[];
-}
-
-interface Round {
-  name: GameRoundName;
-  bets: Record<PlayerId, ChipAmount>;
-  currentPlayer: PlayerId | null;
-  inGamePlayerStates: PlayerStates[];
-}
-
-
 type PlayerStates = "active" | "folded" | "all-in" | "called";
 
-interface Table {
+interface TableInterface {
   smallBlindAmount: ChipAmount;
   bigBlindAmount: ChipAmount;
   players: PlayerId[];
   playersCashAmount: PlayersCashAmount;
-  // currentGame: Game;
   previousGames: GameInterface[];
 }
 
 interface GameInterface {
+  allPlayers: PlayerId[];
   buttonPlayer: PlayerId;
   gameStacks: PlayersCashAmount;
   pots: Pot[];
@@ -67,20 +55,14 @@ interface GameInterface {
   currentBets: Record<PlayerId, ChipAmount>;
   settledQueue: PlayerId[];
   actQueue: PlayerId[];
-  // outQueue: PlayerId[];
-
-  // rounds: Round[];
-  // inGamePlayers: PlayerId[];
-  // decisions: { player: PlayerId, decision: PlayerDecision }[];
-  // results: PotResult[];
+  winners: PlayerId[][];
 }
 
-function process(table: Table, decision: PlayerAction): Table {
-  return table;
-}
-
-function undo(table: Table) {
-  return table;
+interface ResultOption {
+  potName: string;
+  potAmount: ChipAmount;
+  involvedPlayers: PlayerId[];
+  winners: PlayerId[];
 }
 
 function findPlayer(players: PlayerId[], button: PlayerId, type: 'utg' | 'sb' | 'bb'): PlayerId {
@@ -115,7 +97,88 @@ function findPlayer(players: PlayerId[], button: PlayerId, type: 'utg' | 'sb' | 
   return players[i];
 }
 
+function generateQueueForRound(allPlayers: PlayerId[], inGamePlayers: PlayerId[], buttonPlayer: PlayerId, order: 'pre-flop' | 'post-pre-flop') {
+  // Here is how the algorithm is implemented in the way that minimizes cognitive overload:
+  // Given
+  //     allPlayers  [  1  2  3  4  5  6  7  8  ]
+  // inGamePlayers   [     2        5  6     8  ]
+
+  // First: generate allPlayers * 3 (to account for all cases where overflow is possible), so
+  //         result  [  1  2  3  4  5  6  7  8  1  2  3  4  5  6  7  8  1  2  3  4  5  6  7  8  ]
+
+  // Find the player we want to start with.
+  //         result  [                 6  7  8  1  2  3  4  5  6  7  8  1  2  3  4  5  6  7  8  ]
+
+  // Filter so that we only include players that are in inGamePlayers
+  //         result  [                 6     8     2        5  6     8     2        5  6     8  ]
+
+  // Take the first x elements, where x = inGamePlayers.length
+  //         result                 [  6     8     2        5  ]  --  Done!
+
+  let result = [...allPlayers, ...allPlayers, ...allPlayers];
+  const buttonPlayerPosition = allPlayers.indexOf(buttonPlayer);
+  if (buttonPlayerPosition === -1) throw new Error('Button player is not found in player list');
+
+  let targetPlayerIndex: number;
+  if (order === 'pre-flop')
+    targetPlayerIndex = buttonPlayerPosition + 3;
+  else if (order === 'post-pre-flop')
+    targetPlayerIndex = buttonPlayerPosition + 2;
+  else
+    throw new Error('Unexpected order: ' + order);
+
+  result.splice(0, targetPlayerIndex);
+  result = result.filter(p => inGamePlayers.includes(p));
+  result.splice(0, inGamePlayers.length);
+  return result;
+}
+
+
+class Table implements TableInterface {
+  smallBlindAmount!: number;
+  bigBlindAmount!: number;
+  buttonPlayer!: PlayerId;
+  players: string[];
+  playersCashAmount: PlayersCashAmount;
+  previousGames: GameInterface[];
+
+  fromJSON(s: string) { Object.assign(this, JSON.parse(s)); };
+  toJSON() { return this; }
+
+  constructor(obj: TableInterface) {
+    Object.assign(this, obj);
+  }
+
+  initializeNewGame() {
+    const sb = findPlayer(this.players, this.buttonPlayer, 'sb');
+    const bb = findPlayer(this.players, this.buttonPlayer, 'bb');
+    const gameStacks = Object.assign({}, this.playersCashAmount);
+    // TODO: Check if they have that amount of chips
+    gameStacks[sb] -= this.smallBlindAmount;
+    gameStacks[bb] -= this.bigBlindAmount;
+
+    return new Game({
+      allPlayers: this.players,
+      buttonPlayer: this.buttonPlayer,
+      gameStacks,
+      pots: [{ amount: 0, players: Array.from(this.players) }],
+      currentRound: 'pre-flop',
+      currentBets: { [sb]: this.smallBlindAmount, [bb]: this.bigBlindAmount },
+      settledQueue: [],
+      actQueue: generateQueueForRound(this.players, this.players, this.buttonPlayer, 'pre-flop'),
+      winners: [],
+    });
+  }
+
+  addPreviousGame(game: Game) {
+    if (!game.isAllFinished) throw new Error('Game must be finished before being added to previous game');
+    this.previousGames.push(game);
+    this.buttonPlayer = this.players[this.players.indexOf(game.buttonPlayer) + 1] ?? this.players[0];
+  }
+}
+
 class Game implements GameInterface {
+  allPlayers!: PlayerId[];
   buttonPlayer!: PlayerId;
   gameStacks!: PlayersCashAmount;
   pots!: Pot[];
@@ -123,12 +186,17 @@ class Game implements GameInterface {
   currentBets!: Record<PlayerId, ChipAmount>;
   settledQueue!: PlayerId[];
   actQueue!: PlayerId[];
+  winners!: PlayerId[][];
 
   fromJSON(s: string) { Object.assign(this, JSON.parse(s)); };
   toJSON() { return this; }
 
   constructor(obj: GameInterface) {
     Object.assign(this, obj);
+  }
+
+  get isAllFinished(): Boolean {
+    return this.currentRound === 'result' && this.winners.length === this.pots.length;
   }
 
   get currentPlayer(): PlayerId {
@@ -153,9 +221,33 @@ class Game implements GameInterface {
     return result;
   }
 
+  get resultOptions(): ResultOption {
+    if (!this.isAllFinished) throw new Error('Expected state');
+    if (this.pots.length === 1) {
+      return {
+        potName: 'Pot',
+        potAmount: this.pots[0].amount,
+        involvedPlayers: this.pots[0].players,
+        winners: [],
+      };
+    }
+
+    return {
+      potName: this.winners.length === 0 ? 'Main Pot' : `Pot #${this.winners.length}`,
+      potAmount: this.pots[0].amount,
+      involvedPlayers: this.pots[0].players,
+      winners: [],
+    };
+  }
+
+  setResult(result: ResultOption) {
+    if (!this.isAllFinished) throw new Error('Expected state');
+    // TODO
+  }
+
   act(action: PlayerAction) {
-    if (this.actQueue.length === 0)
-      throw new Error('Never')
+    if (this.actQueue.length === 0) throw new Error('Never');
+    if (this.currentRound === 'result') throw new Error('Never');
 
     if (action.type === 'fold') {
       this.actQueue.shift();
@@ -182,8 +274,7 @@ class Game implements GameInterface {
     }
 
     if (this.actQueue.length === 0) {
-      // TODO: Re-adjust order according to round
-      this.actQueue = this.settledQueue;
+      this.actQueue = generateQueueForRound(this.allPlayers, this.settledQueue, this.buttonPlayer, 'post-pre-flop');
       this.settledQueue = [];
       // TODO: Handle side pots
       const potSum = Object.values(this.currentBets).reduce((x, p) => x + p, 0);
@@ -195,12 +286,15 @@ class Game implements GameInterface {
           this.currentRound === 'flop' ? 'turn' : 'river';
 
       } else if (this.currentRound === 'river') {
-        // TODO: Ask for result and split the pots
-        console.log('Finished');
+        this.currentRound = 'result';
       } else {
         throw Error('Never');
       }
     }
+
+    const playerCountWithPositiveStack = Object.values(this.gameStacks).filter(stack => stack > 0).length;
+    if (playerCountWithPositiveStack <= 1)
+      this.currentRound = 'result';
   }
 
   toString(): string {
@@ -227,36 +321,20 @@ class Game implements GameInterface {
   }
 }
 
-function initGameFromTable(t: Table, buttonPlayer?: PlayerId): Game {
-  buttonPlayer ??= t.players[0];
-  const sb = findPlayer(t.players, buttonPlayer, 'sb');
-  const bb = findPlayer(t.players, buttonPlayer, 'bb');
-
-  return new Game({
-    buttonPlayer,
-    gameStacks: Object.assign({}, t.playersCashAmount),
-    pots: [{ amount: 0, players: Array.from(t.players) }],
-    currentRound: 'pre-flop',
-    currentBets: { [sb]: t.smallBlindAmount, [bb]: t.bigBlindAmount }, // TODO: Deduct sb/bb from gameStack
-    settledQueue: [],
-    actQueue: Array.from(t.players), // TODO: Re-adjust order according to buttonPlayer
-  })
-}
-
 function getMockTable(): Table {
   const players = ['Alice', 'Bob', 'Carlos', 'Dave', 'Eve', 'Frank'];
-  return {
+  return new Table({
     smallBlindAmount: 25,
     bigBlindAmount: 50,
     players: players,
     previousGames: [],
     playersCashAmount: Object.assign({}, ...players.map(p => ({ [p]: 1000 }))),
-  }
+  });
 }
 
 (() => {
   const t = getMockTable()
-  const g = initGameFromTable(t)
+  const g = t.initializeNewGame()
 
   while (true) {
     console.log('----------------------')
