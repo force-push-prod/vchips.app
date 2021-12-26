@@ -20,7 +20,7 @@ export async function handler(event: any) {
         tableId: tableId,
         ttl: currentTime + (12 * 60 * 60), // 12 hour
         rounds: [],
-        players: [],
+        players: {},
         playersCashAmount: {},
         smallBlindAmount: input.smallBlindAmount,
         bigBlindAmount: input.bigBlindAmount,

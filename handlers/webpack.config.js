@@ -5,6 +5,8 @@ module.exports = {
         "connect": "./connect.js",
         "login": "./login.js",
         "createTable": "./createTable.js",
+        "websocketLogin": "./websocketLogin.js",
+        "update": "./update.js",
     },
     mode: "development",
     target: "node",

@@ -1,6 +1,10 @@
 import { Buffer } from "buffer"
 import * as crypto from "crypto"
 import bcrypt from "bcryptjs"
+import { PostToConnectionCommand } from "@aws-sdk/client-apigatewaymanagementapi"
+import { apigwManagementClient, textEncoder } from "./Clients"
+import { dynamoDBDocumentClient } from "./Clients"
+import {Table} from "./Types"
 
 export function getEventBody(event: any): any {
     if (event.isBase64Encoded) {
@@ -30,4 +34,33 @@ export function generateConditionExpression(
     } else {
         return `attribute_not_exists(${expressionAttributeName})`
     }
+}
+
+export async function broadcastUpdateThroughWebsocket(
+    table: Table,
+    myConnectionId: string,
+){
+
+    const connections: Array<string> = Object.values(table.players);
+
+    const payload = textEncoder.encode(JSON.stringify(table))
+    const broadcasts = connections.flatMap(connectionId => {
+        if (connectionId !== myConnectionId) {
+            return new PostToConnectionCommand({
+                ConnectionId: connectionId,
+                Data: payload
+            })
+        }
+    }).map(async broadcastUpdateCommand => {
+        if (broadcastUpdateCommand) {
+            try{
+                await apigwManagementClient.send(broadcastUpdateCommand)
+            } catch(e){
+                // maybe delete from database
+                console.log(e)
+            }
+        }
+    }) ?? []
+    
+    return Promise.all(broadcasts)
 }

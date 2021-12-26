@@ -8,7 +8,6 @@
   "dependencies": {
       "@aws-sdk/client-apigatewaymanagementapi": "^3.25.0",
       "@aws-sdk/client-dynamodb": "^3.25.0",
-      "@aws-sdk/client-sns": "^3.25.0",
       "@aws-sdk/lib-dynamodb": "^3.25.0",
       "bcryptjs": "^2.4.3",
       "decimal.js": "^10.3.1"
