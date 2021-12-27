@@ -1,6 +1,6 @@
 type ChipAmount = number;
 type PlayerId = string;
-type GameRoundName = "pre-flop" | "flop" | "turn" | "river" | "result";
+type GameRoundName = "pre-flop" | "flop" | "turn" | "river" | "showdown";
 
 interface Player {
   id: PlayerId;
@@ -196,7 +196,7 @@ class Game implements GameInterface {
   }
 
   get isAllFinished(): Boolean {
-    return this.currentRound === 'result' && this.winners.length === this.pots.length;
+    return this.currentRound === 'showdown' && this.winners.length === this.pots.length;
   }
 
   get currentPlayer(): PlayerId {
@@ -247,7 +247,7 @@ class Game implements GameInterface {
 
   act(action: PlayerAction) {
     if (this.actQueue.length === 0) throw new Error('Never');
-    if (this.currentRound === 'result') throw new Error('Never');
+    if (this.currentRound === 'showdown') throw new Error('Never');
 
     if (action.type === 'fold') {
       this.actQueue.shift();
@@ -286,7 +286,7 @@ class Game implements GameInterface {
           this.currentRound === 'flop' ? 'turn' : 'river';
 
       } else if (this.currentRound === 'river') {
-        this.currentRound = 'result';
+        this.currentRound = 'showdown';
       } else {
         throw Error('Never');
       }
@@ -294,7 +294,7 @@ class Game implements GameInterface {
 
     const playerCountWithPositiveStack = Object.values(this.gameStacks).filter(stack => stack > 0).length;
     if (playerCountWithPositiveStack <= 1)
-      this.currentRound = 'result';
+      this.currentRound = 'showdown';
   }
 
   toString(): string {
