@@ -1,21 +1,20 @@
 import React from 'react';
+import DisplayContainer from './components/DisplayContainer';
+import JoinGameDisplay from './components/JoinGameDisplay';
+import PrimaryGameDisplay from './components/PrimaryGameDisplay';
 
 function App() {
+  const [d2, setD2] = React.useState(false);
   return (
-    <div className="App">
-      <header className="App-header">
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div>
+      <DisplayContainer>
+        {
+          d2 ?
+            <PrimaryGameDisplay />
+            :
+            <JoinGameDisplay onSubmit={() => setD2(true)} />
+        }
+      </DisplayContainer>
     </div>
   );
 }
