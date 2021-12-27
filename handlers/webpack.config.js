@@ -3,7 +3,6 @@ module.exports = {
     context: path.join(__dirname, "src", "functions"),
     entry: {
         "connect": "./connect.js",
-        "login": "./login.js",
         "createTable": "./createTable.js",
         "websocketLogin": "./websocketLogin.js",
         "update": "./update.js",

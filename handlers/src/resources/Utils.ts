@@ -43,7 +43,7 @@ export async function broadcastUpdateThroughWebsocket(
 
     const connections: Array<string> = Object.values(table.players);
 
-    const payload = textEncoder.encode(JSON.stringify(table))
+    const payload = textEncoder.encode(JSON.stringify(table.nestedTablePayload));
     const broadcasts = connections.flatMap(connectionId => {
         if (connectionId !== myConnectionId) {
             return new PostToConnectionCommand({
