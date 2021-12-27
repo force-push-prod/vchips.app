@@ -29,7 +29,6 @@ export async function handler(event: any) {
             body: "Table not found"
         }
     }
-    await broadcastUpdateThroughWebsocket(table, event.requestContext.connectionId);
     
     return {
         statusCode: 200,
