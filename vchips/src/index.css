@@ -27,14 +27,16 @@ code {
 .color-3 { background-color: #8ff7a7; }
 .color-4 { background-color: #e85d75; }
 
-.primary-game-display {
+.primary-game-display-transition {
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 500ms;
 }
 
 .container-rainbow { background-color: white; animation: 3s infinite forwards rainbow; }
-.container-folded { background-color: #161032; }
+.container-folded { background-color: #bababa; position: relative; }
+.container-folded::after { content: ""; position: absolute; top: 0; left: 0; display: block; width: 100%; height: 100%; }
+.container-folded::after {background-color: white; animation: 1s forwards just-folded;  }
 .container-checked { background-color: #007ea7; }
 .container-raised { background-color: #e85d75; }
 .container-called { background-color: #8ff7a7; }
@@ -69,4 +71,9 @@ code {
 @keyframes blinding-border-my-turn {
   from { box-shadow: inset var(--max-border) var(--max-border) hsl(270, 95%, 75%), inset var(---max-border) var(---max-border) hsl(270, 95%, 75%); }
   to { box-shadow: inset 6px 6px hsl(270, 95%, 75%), inset -6px -6px hsl(270, 95%, 75%); }
+}
+
+@keyframes just-folded {
+  from { transform: scale(1); }
+  to { transform: scale(0); }
 }

@@ -1,7 +1,7 @@
 import React from 'react'
 import PrimaryGameDisplay from './PrimaryGameDisplay'
 import JoinGameDisplay from './JoinGameDisplay'
-import type { PlayerAction, PokerServer, Table } from '../poker'
+import { PlayerAction, PokerServer, Table, Game, findPlayer } from '../poker'
 import SetupGameDisplay from './SetupGameDisplay'
 
 interface Props { }
@@ -63,7 +63,6 @@ export default class ClientController extends React.Component<Props, State> {
   render() {
     const { table } = this.state;
     const currentGame = table?.currentGame;
-    console.log(currentGame?.currentPlayer);
 
     return (
       <div className='w-full h-full'>
@@ -85,21 +84,56 @@ export default class ClientController extends React.Component<Props, State> {
                   onUpdate={(newTable: Table) => this.server.updateTable(newTable)}
                 />
                 :
-                <PrimaryGameDisplay
-                  isDisconnected={!this.state.isConnected}
-                  isMyTurn={currentGame.currentPlayer === this.state.playerId}
-                  myStack={currentGame.gameStacks[this.state.playerId]}
-                  potSizes={currentGame.pots.map(p => p.amount)}
-                  actions={currentGame.currentPlayer === this.state.playerId ? currentGame.currentPlayerActions : []}
-                  betted={currentGame.currentBets[this.state.playerId] ?? 0}
-                  state={currentGame.actQueue.includes(this.state.playerId) ? 'default' :
-                    currentGame.settledQueue.includes(this.state.playerId) ? 'called' : 'folded'
-                  }
-                  disconnect={() => this.disconnect()}
-                  act={(a: PlayerAction) => this.onAction(a)}
-                />
+                currentGame.currentRound === 'showdown' ?
+                  <></>
+                  :
+                  <PrimaryGameDisplay
+                    currentRound={currentGame.currentRound}
+                    isDisconnected={!this.state.isConnected}
+                    isMyTurn={currentGame.currentPlayer === this.state.playerId}
+                    myStack={currentGame.gameStacks[this.state.playerId]}
+                    potSizes={currentGame.pots.map(p => p.amount)}
+                    position={extractPosition(currentGame, this.state.playerId)}
+                    actions={currentGame.currentPlayer === this.state.playerId ? currentGame.currentPlayerActions : []}
+                    betted={currentGame.currentBets[this.state.playerId] ?? 0}
+                    state={extractDisplayStateFromGame(currentGame, this.state.playerId)}
+                    disconnect={() => this.disconnect()}
+                    act={(a: PlayerAction) => this.onAction(a)}
+                  />
         }
       </div>
     )
   }
+}
+
+function extractPosition(game: Game, player: string): ('sb' | 'bb' | 'utg' | 'button')[] {
+  return [
+    findPlayer(game.allPlayers, game.buttonPlayer, 'utg') === player && 'utg',
+    findPlayer(game.allPlayers, game.buttonPlayer, 'sb') === player && 'sb',
+    findPlayer(game.allPlayers, game.buttonPlayer, 'bb') === player && 'bb',
+    game.buttonPlayer === player && 'button',
+  ].filter(Boolean) as any;
+}
+
+type ClientState = 'folded' | 'checked' | 'raised' | 'called' | 'default';
+function extractDisplayStateFromGame(game: Game, player: string): ClientState {
+  if (!game.settledQueue.includes(player) && !game.actQueue.includes(player))
+    return 'folded';
+
+  if (game.actQueue.includes(player))
+    return 'default';
+
+  const playerBet = game.currentBets[player] ?? 0;
+  const maxBetExceptPlayer = Math.max(0, ...Object.entries(game.currentBets).filter(([p, _]) => p !== player).map(([_, x]) => x));
+  if (playerBet === 0)
+    return 'checked';
+
+  if (playerBet === maxBetExceptPlayer)
+    return 'called';
+
+  if (playerBet > maxBetExceptPlayer)
+    // return 'raised'; TODO: Currently there is no way to determine if the player raised
+    return 'called';
+
+  throw new Error('?');
 }

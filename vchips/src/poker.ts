@@ -1,6 +1,6 @@
 type ChipAmount = number;
 type PlayerId = string;
-type GameRoundName = "pre-flop" | "flop" | "turn" | "river" | "showdown";
+export type GameRoundName = "pre-flop" | "flop" | "turn" | "river" | "showdown";
 
 type PlayerChipMap = Record<PlayerId, ChipAmount>;
 
@@ -66,7 +66,7 @@ interface ResultSummary {
 }
 
 
-function findPlayer(players: PlayerId[], button: PlayerId, type: 'utg' | 'sb' | 'bb'): PlayerId {
+export function findPlayer(players: PlayerId[], button: PlayerId, type: 'utg' | 'sb' | 'bb'): PlayerId {
   const buttonIndex = players.indexOf(button);
 
   if (buttonIndex === -1)
@@ -90,7 +90,7 @@ function findPlayer(players: PlayerId[], button: PlayerId, type: 'utg' | 'sb' | 
     default:
       throw Error('Unexpected type: ' + type);
   }
-  if (i < 0) i -= players.length;
+  if (i >= players.length) i -= players.length;
 
   if (players[i] === undefined)
     throw Error('Internal Error: Unexpected undefined');
@@ -130,8 +130,7 @@ function generateQueueForRound(allPlayers: PlayerId[], inGamePlayers: PlayerId[]
 
   result.splice(0, targetPlayerIndex);
   result = result.filter(p => inGamePlayers.includes(p));
-  result.splice(0, result.length - inGamePlayers.length);
-  return result;
+  return result.slice(0, inGamePlayers.length);
 }
 
 
@@ -198,7 +197,7 @@ export class Table implements TableInterface {
   }
 }
 
-class Game implements GameInterface {
+export class Game implements GameInterface {
   allPlayers!: PlayerId[];
   buttonPlayer!: PlayerId;
   gameStacks!: PlayerChipMap;
@@ -259,6 +258,8 @@ class Game implements GameInterface {
   }
 
   setResult(result: ResultOption) {
+    if (this.currentRound !== 'showdown')
+      throw new Error('Cannot set result while not in showdown stage');
     const { potIndex, winners } = result;
     const originalPot = this.pots[potIndex];
     if (!originalPot) throw new Error('Unexpected value for potIndex');
@@ -286,8 +287,8 @@ class Game implements GameInterface {
   }
 
   act(action: PlayerAction) {
+    if (this.currentRound === 'showdown') throw new Error('Cannot act during showdown');
     if (this.actQueue.length === 0) throw new Error('Never');
-    if (this.currentRound === 'showdown') throw new Error('Never');
 
     if (action.type === 'fold') {
       this.actQueue.shift();
@@ -332,9 +333,11 @@ class Game implements GameInterface {
       if (this.currentRound === undefined || this.currentRound === 'pre-flop') throw new Error('Unexpected this.currentRound');
     }
 
-    const playerCountWithPositiveStack = Object.values(this.gameStacks).filter(stack => stack > 0).length;
-    if (playerCountWithPositiveStack <= 1)
+    const inGamePlayers = [...this.actQueue, ...this.settledQueue];
+    const inGamePlayerCountWithPositiveStack = Object.entries(this.gameStacks).filter(([player, stack]) => inGamePlayers.includes(player) && stack > 0).length;
+    if (inGamePlayerCountWithPositiveStack === 1)
       this.currentRound = 'showdown';
+    if (inGamePlayerCountWithPositiveStack < 1) throw new Error('Never');
   }
 
   toString(): string {

@@ -1,5 +1,5 @@
 import React from 'react'
-import type { PlayerAction } from '../poker'
+import type { PlayerAction, GameRoundName } from '../poker'
 
 
 // const elem = ['container-rainbow', 'container-folded', 'container-checked', 'container-raised', 'container-called', 'container-default', 'container-disconnected', 'container-my-turn']
@@ -14,6 +14,8 @@ interface Props {
   myStack: number;
   betted: number;
   actions: PlayerAction[];
+  currentRound: GameRoundName;
+  position: ('sb' | 'bb' | 'utg' | 'button')[];
   disconnect: () => void;
   act: (action: PlayerAction) => void;
 }
@@ -22,9 +24,10 @@ export default function PrimaryGameDisplay(props: Props) {
   const [raiseInput, setRaiseInput] = React.useState(String((props.actions.filter(a => a.type === 'raise')[0] as any)?.addedAmount ?? 1));
 
   return (
-    <div className={`h-full w-full primary-game-display container-${props.state} ${props.isDisconnected && 'container-disconnected'} ${props.isMyTurn && 'container-my-turn'}`}>
-      {/* <div className="whitespace-pre">{JSON.stringify(props, null, 4)}</div> */}
+    <div className={`h-full w-full primary-game-display-transition p-5 container-${props.state} ${props.isDisconnected && 'container-disconnected'} ${props.isMyTurn && 'container-my-turn'}`}>
       <button className="text-xl font-medium border rounded" onClick={() => props.disconnect()}>Disconnect</button>
+      <div className="text-xl">Position: {props.position.join(', ')}</div>
+      <div className="text-xl">Current Round: {props.currentRound}</div>
       <div className="text-xl">Pot: {props.potSizes.toString()}</div>
       <div className="text-xl">My Stack: {props.myStack}</div>
       <div className="text-xl">Betted this round: {props.betted}</div>
@@ -41,14 +44,14 @@ export default function PrimaryGameDisplay(props: Props) {
                   action.type === 'check' ? <>Check</> :
                     action.type === 'raise' ?
                       <div className="flex gap-3">
-                        <span onClick={(e) => {
+                        <input type="number" value={raiseInput} min={action.addedAmount} onChange={(e) => setRaiseInput(e.target.value)} />
+                        <span onClick={() => {
                           props.act({
                             type: 'raise',
                             addedAmount: Number(raiseInput),
                             totalAmount: Number(raiseInput) + action.totalAmount - action.addedAmount
                           });
                         }}>Raise</span>
-                        <input type="number" value={raiseInput} min={action.addedAmount} onChange={(e) => setRaiseInput(e.target.value)} />
                       </div>
                       :
                       <>Error</>
