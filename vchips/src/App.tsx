@@ -1,28 +1,40 @@
 import React from 'react';
 import DisplayContainer from './components/DisplayContainer';
-import JoinGameDisplay from './components/JoinGameDisplay';
-import PrimaryGameDisplay from './components/PrimaryGameDisplay';
-import TablePlayerDisplay from './components/TablePlayerDisplay';
-import { websocketLogin } from './model/websocket';
+import ClientController from './components/ClientController';
+import { PokerServer } from './poker';
+import { DndProvider } from 'react-dnd'
+import { TouchBackend } from 'react-dnd-touch-backend';
 
 function App() {
-  const [d2, setD2] = React.useState(false);
-  const [d3, setD3] = React.useState(false);
+  const [x, update] = React.useState(1);
+
+  React.useEffect(() => {
+    // @ts-ignore
+    globalThis.server = new PokerServer();
+    // setInterval(() => update(x => x + 1), 100);
+  }, []);
+
+
   return (
-    <div>
-      <DisplayContainer>
-        {
-          d2 ?
-            ( d3?
-              <PrimaryGameDisplay />
-              :
-              <TablePlayerDisplay onSubmit={() => setD3(true)} />
-            )
-            :
-            <JoinGameDisplay onSubmit={() => setD2(true)} />
-        }
-      </DisplayContainer>
-    </div>
+    <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
+      <div>
+        <div className="flex">
+          <DisplayContainer>
+            <ClientController />
+          </DisplayContainer>
+          <DisplayContainer>
+            <ClientController />
+          </DisplayContainer>
+          <DisplayContainer>
+            <ClientController />
+          </DisplayContainer>
+        </div>
+        <pre className="cursor-pointer" onClick={() => update(x + 1)}>{
+          // @ts-ignore
+          JSON.stringify(globalThis.server, null, 2) ?? 'x'
+        }</pre>
+      </div>
+    </DndProvider>
   );
 }
 

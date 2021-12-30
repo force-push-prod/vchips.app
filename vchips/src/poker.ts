@@ -31,14 +31,13 @@ interface Pot {
   players: PlayerId[];
 }
 
-type PlayerStates = "active" | "folded" | "all-in" | "called";
-
 interface TableInterface {
   smallBlindAmount: ChipAmount;
   bigBlindAmount: ChipAmount;
   players: PlayerId[];
   tableStacks: PlayerChipMap;
   previousGames: GameInterface[];
+  currentGame: Game | null;
 }
 
 interface GameInterface {
@@ -77,21 +76,21 @@ function findPlayer(players: PlayerId[], button: PlayerId, type: 'utg' | 'sb' | 
 
   switch (type) {
     case 'sb':
-      i = buttonIndex - 1;
+      i = buttonIndex + 1;
       break;
 
     case 'bb':
-      i = buttonIndex - 2;
+      i = buttonIndex + 2;
       break;
 
     case 'utg':
-      i = buttonIndex - 3;
+      i = buttonIndex + 3;
       break;
 
     default:
       throw Error('Unexpected type: ' + type);
   }
-  if (i < 0) i = players.length + i;
+  if (i < 0) i -= players.length;
 
   if (players[i] === undefined)
     throw Error('Internal Error: Unexpected undefined');
@@ -125,33 +124,44 @@ function generateQueueForRound(allPlayers: PlayerId[], inGamePlayers: PlayerId[]
   if (order === 'pre-flop')
     targetPlayerIndex = buttonPlayerPosition + 3;
   else if (order === 'post-pre-flop')
-    targetPlayerIndex = buttonPlayerPosition + 2;
+    targetPlayerIndex = buttonPlayerPosition + 1;
   else
     throw new Error('Unexpected order: ' + order);
 
   result.splice(0, targetPlayerIndex);
   result = result.filter(p => inGamePlayers.includes(p));
-  result.splice(0, inGamePlayers.length);
+  result.splice(0, result.length - inGamePlayers.length);
   return result;
 }
 
 
-class Table implements TableInterface {
+export class Table implements TableInterface {
   smallBlindAmount!: number;
   bigBlindAmount!: number;
-  buttonPlayer!: PlayerId;
-  players: string[];
-  tableStacks: PlayerChipMap;
-  previousGames: GameInterface[];
+  buttonPlayer?: PlayerId;
+  players!: string[];
+  tableStacks!: PlayerChipMap;
+  previousGames!: GameInterface[];
+  currentGame: Game | null = null;
 
-  fromJSON(s: string) { Object.assign(this, JSON.parse(s)); };
+  fromJSON(s: string) {
+    Object.assign(this, JSON.parse(s));
+    if (this.currentGame)
+      this.currentGame = new Game(this.currentGame);
+  };
   toJSON() { return this; }
 
   constructor(obj: TableInterface) {
     Object.assign(this, obj);
+    if (this.currentGame)
+      this.currentGame = new Game(this.currentGame);
   }
 
   initializeNewGame() {
+    if (this.players.length <= 1)
+      throw new Error('Cannot start game with 1 or less people');
+    this.buttonPlayer ??= this.players[0];
+
     const sb = findPlayer(this.players, this.buttonPlayer, 'sb');
     const bb = findPlayer(this.players, this.buttonPlayer, 'bb');
     const gameStacks = Object.assign({}, this.tableStacks);
@@ -260,7 +270,7 @@ class Game implements GameInterface {
   }
 
   getResultSummary(): ResultSummary {
-    const winnerChipMap = {};
+    const winnerChipMap: PlayerChipMap = {};
 
     this.winners.forEach((winners, index) => {
       const originalPot = this.pots[index];
@@ -351,15 +361,63 @@ class Game implements GameInterface {
   }
 }
 
-function getMockTable(): Table {
-  const players = ['Alice', 'Bob', 'Carlos', 'Dave', 'Eve', 'Frank'];
+// function getMockTable(): Table {
+//   const players = ['Alice', 'Bob', 'Carlos', 'Dave', 'Eve', 'Frank'];
+//   return new Table({
+//     smallBlindAmount: 25,
+//     bigBlindAmount: 50,
+//     players: players,
+//     previousGames: [],
+//     tableStacks: Object.assign({}, ...players.map(p => ({ [p]: 1000 }))),
+//     currentGame: null,
+//   });
+// }
+
+function getEmptyTable(): Table {
   return new Table({
-    smallBlindAmount: 25,
-    bigBlindAmount: 50,
-    players: players,
+    smallBlindAmount: 5,
+    bigBlindAmount: 10,
+    players: [],
     previousGames: [],
-    tableStacks: Object.assign({}, ...players.map(p => ({ [p]: 1000 }))),
+    tableStacks: {},
+    currentGame: null,
   });
+}
+
+interface PokerHandlers {
+  onUpdate: (newTable: Table) => void;
+  onDisconnect: () => void;
+  onConnect: (table: Table) => void;
+}
+
+export class PokerServer {
+  private players: Record<PlayerId, PokerHandlers> = {};
+  private table: Table = getEmptyTable();
+
+  get connectedPlayers() {
+    return Object.keys(this.players);
+  }
+
+  connect(playerId: string, handlers: PokerHandlers) {
+    this.players[playerId] = handlers;
+    handlers.onConnect(new Table(JSON.parse(JSON.stringify(this.table))));
+  }
+
+  disconnect(playerId: string) {
+    if (playerId in this.players) {
+      this.players[playerId].onDisconnect();
+    }
+
+    this.updateTable({ ...this.table, players: this.table.players.filter(p => p !== playerId) } as Table);
+    delete this.players[playerId];
+  }
+
+  updateTable(newTable: Table) {
+    this.table = new Table(JSON.parse(JSON.stringify(newTable)));
+    for (const handlers of Object.values(this.players)) {
+      handlers.onUpdate(new Table(JSON.parse(JSON.stringify(newTable))));
+    }
+  }
 }
 
 // (() => {

@@ -16,8 +16,57 @@ code {
     monospace;
 }
 
+:root {
+  --max-border: 20px;
+  ---max-border: -20px;
+}
+
 .color-0 { background-color: #306b34; }
 .color-1 { background-color: #161032; }
 .color-2 { background-color: #007ea7; }
 .color-3 { background-color: #8ff7a7; }
 .color-4 { background-color: #e85d75; }
+
+.primary-game-display {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 500ms;
+}
+
+.container-rainbow { background-color: white; animation: 3s infinite forwards rainbow; }
+.container-folded { background-color: #161032; }
+.container-checked { background-color: #007ea7; }
+.container-raised { background-color: #e85d75; }
+.container-called { background-color: #8ff7a7; }
+.container-default { box-shadow: inset 10px 10px blue, inset -10px -10px blue; }
+.container-disconnected { animation: 0.4s ease-in-out infinite alternate blinding-border-disconnected; }
+.container-my-turn { animation: 2s ease-in-out infinite alternate blinding-border-my-turn; }
+
+@keyframes rainbow {
+  from { background-color: hsl(0, 76%, 80%); }
+  20% { background-color: hsl(72, 76%, 80%); }
+  40% { background-color: hsl(144, 76%, 80%); }
+  60% { background-color: hsl(216, 76%, 80%); }
+  80% { background-color: hsl(288, 76%, 80%); }
+  to { background-color: hsl(360, 76%, 80%); }
+}
+
+/* @keyframes blinding-border-disconnected {
+  from { border: 20px solid hsl(60, 95%, 75%); }
+  to { border: 5px solid hsl(60, 95%, 75%); }
+}
+
+@keyframes blinding-border-my-turn {
+  from { border: 20px solid hsl(270, 95%, 75%); }
+  to { border: 5px solid hsl(270, 95%, 75%); }
+} */
+
+@keyframes blinding-border-disconnected {
+  from { box-shadow: inset var(--max-border) var(--max-border) hsl(60, 95%, 75%), inset var(---max-border) var(---max-border) hsl(60, 95%, 75%); }
+  to { box-shadow: inset 0 0 hsl(60, 95%, 75%), inset -0 -0 hsl(60, 95%, 75%); }
+}
+
+@keyframes blinding-border-my-turn {
+  from { box-shadow: inset var(--max-border) var(--max-border) hsl(270, 95%, 75%), inset var(---max-border) var(---max-border) hsl(270, 95%, 75%); }
+  to { box-shadow: inset 6px 6px hsl(270, 95%, 75%), inset -6px -6px hsl(270, 95%, 75%); }
+}
