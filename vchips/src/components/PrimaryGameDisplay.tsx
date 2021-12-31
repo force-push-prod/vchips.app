@@ -1,5 +1,5 @@
 import React from 'react'
-import type { PlayerAction, GameRoundName } from '../poker'
+import type { PlayerAction, GameRoundName, PlayerActionRaise } from '../poker'
 
 
 // const elem = ['container-rainbow', 'container-folded', 'container-checked', 'container-raised', 'container-called', 'container-default', 'container-disconnected', 'container-my-turn']
@@ -21,8 +21,10 @@ interface Props {
 }
 
 export default function PrimaryGameDisplay(props: Props) {
-  const [raiseInput, setRaiseInput] = React.useState(String((props.actions.filter(a => a.type === 'raise')[0] as any)?.addedAmount ?? 1));
-
+  const [raiseInput, setRaiseInput] = React.useState(String((props.actions.filter(a => a.type === 'raise')[0] as PlayerActionRaise)?.addedAmount ?? -1));
+  React.useEffect (() => {
+    setRaiseInput(String((props.actions.filter(a => a.type === 'raise')[0] as PlayerActionRaise)?.addedAmount ?? -1));
+  }, [props.actions]);
   return (
     <div className={`h-full w-full primary-game-display-transition p-5 container-${props.state} ${props.isDisconnected && 'container-disconnected'} ${props.isMyTurn && 'container-my-turn'}`}>
       <button className="text-xl font-medium border rounded" onClick={() => props.disconnect()}>Disconnect</button>

@@ -18,7 +18,7 @@ interface PlayerActionCall {
   totalAmount: ChipAmount;
 }
 
-interface PlayerActionRaise {
+export interface PlayerActionRaise {
   type: "raise";
   addedAmount: ChipAmount;
   totalAmount: ChipAmount;
@@ -50,6 +50,7 @@ interface GameInterface {
   settledQueue: PlayerId[];
   actQueue: PlayerId[];
   winners: PlayerId[][];
+  minimumBet: ChipAmount;
 }
 
 interface ResultOption {
@@ -178,6 +179,7 @@ export class Table implements TableInterface {
       settledQueue: [],
       actQueue: generateQueueForRound(this.players, this.players, this.buttonPlayer, 'pre-flop'),
       winners: [],
+      minimumBet: this.smallBlindAmount,
     });
   }
 
@@ -207,6 +209,7 @@ export class Game implements GameInterface {
   settledQueue!: PlayerId[];
   actQueue!: PlayerId[];
   winners!: PlayerId[][];
+  minimumBet!: ChipAmount;
 
   fromJSON(s: string) { Object.assign(this, JSON.parse(s)); };
   toJSON() { return this; }
@@ -227,13 +230,13 @@ export class Game implements GameInterface {
     const result: PlayerAction[] = [{ type: "fold" }];
 
     if (diff === 0) {
-      result.push({ type: "raise", addedAmount: 0, totalAmount: playerBet });
+      result.push({ type: "raise", addedAmount: this.minimumBet, totalAmount: playerBet + this.minimumBet });
       result.push({ type: "check" });
     } else {
-      result.push({ type: "raise", addedAmount: diff, totalAmount: maxBetSoFar }); // TODO: Re-raise
+      result.push({ type: "raise", addedAmount: diff + this.minimumBet, totalAmount: maxBetSoFar + this.minimumBet }); // TODO: Re-raise
       result.push({ type: "call", addedAmount: diff, totalAmount: maxBetSoFar });
     }
-
+    console.log(`Player ${playerToAct} has actions: ${result.map(a => a.type).join(', ')}`);
     return result;
   }
 
