@@ -423,6 +423,71 @@ export class PokerServer {
   }
 }
 
+export class PokerWebSocketGateway{
+  private table: Table = getEmptyTable();
+  private connection: WebSocket = new WebSocket('wss://ws.vchips.app');
+  private isLoggedIn: boolean = false;
+  currentTableId = "";
+  currentUserId = "";
+  
+  login(userId: string, tableId: string){
+    this.currentTableId = tableId;
+    this.currentUserId = userId;
+    this.connection.send(JSON.stringify({
+        "action": "login",
+        "userId": userId,
+        "tableId": tableId
+    }));
+  }
+
+  async createTable(smallBlindAmount: ChipAmount, bigBlindAmount: ChipAmount ){
+    this.table.smallBlindAmount = smallBlindAmount;
+    this.table.bigBlindAmount = bigBlindAmount;
+    let response = await fetch('https://vchips.app/tables/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            table: this.table,
+        })
+    });
+    this.currentTableId = await response.text()
+    return this.currentTableId;
+  }
+
+  registerCallbacks(handler: PokerHandlers){
+    this.connection.onopen = () => {
+      handler.onConnect(new Table(JSON.parse(JSON.stringify(this.table))));
+    }
+    this.connection.onmessage = (event) => {
+      const newTable: Table = JSON.parse(event.data);
+      console.log("New Table: " + newTable);
+      if (!this.isLoggedIn){
+        this.isLoggedIn = true;
+        newTable.players.push(this.currentUserId);
+        this.table = newTable;
+        handler.onUpdate(new Table(JSON.parse(JSON.stringify(this.table))));
+        this.updateTable(this.table);
+      } else {
+        this.table = newTable;
+        handler.onUpdate(new Table(JSON.parse(JSON.stringify(this.table))));
+      }
+    }
+    this.connection.onclose = () => {
+      handler.onDisconnect();
+    }
+  }
+
+  updateTable(newTable: Table) {
+    this.connection.send(JSON.stringify({
+      "action": "update",
+      "tableId": this.currentTableId,
+      "table": newTable
+    }))
+  }
+}
+
 // (() => {
 //   const t = getMockTable()
 //   const g = t.initializeNewGame()
