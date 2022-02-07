@@ -20,13 +20,13 @@ function App() {
       <div>
         <div className="flex">
           <DisplayContainer>
-            <ClientController />
+            <ClientController debugPlayerId='A' />
           </DisplayContainer>
           <DisplayContainer>
-            <ClientController />
+            <ClientController debugPlayerId='B' />
           </DisplayContainer>
           <DisplayContainer>
-            <ClientController />
+            <ClientController debugPlayerId='C' />
           </DisplayContainer>
         </div>
         <pre className="cursor-pointer" onClick={() => update(x + 1)}>{

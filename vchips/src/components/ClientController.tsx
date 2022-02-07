@@ -3,22 +3,29 @@ import PrimaryGameDisplay from './PrimaryGameDisplay'
 import JoinGameDisplay from './JoinGameDisplay'
 import { PlayerAction, PokerServer, Table, Game, findPlayer } from '../poker'
 import SetupGameDisplay from './SetupGameDisplay'
+import ShowdownDisplay from './ShowdownDisplay'
 
-interface Props { }
+interface Props {
+  debugPlayerId?: string;
+}
+
 interface State {
-  playerName: string;
-  playerId: string | null;
+  playerId: string;
   isConnected: boolean;
   table: Table | null;
 }
 
 export default class ClientController extends React.Component<Props, State> {
   state: State = {
-    playerName: '',
-    playerId: null,
+    playerId: this.props.debugPlayerId ?? '',
     isConnected: false,
     table: null,
   }
+
+  // constructor(props: Props) {
+  //   super(props);
+  //   this.state.playerId = props.debugPlayerId ?? '';
+  // }
 
   get isMyTurn() { return false; }
   get server() {
@@ -28,7 +35,7 @@ export default class ClientController extends React.Component<Props, State> {
 
   onConnected = (table: Table) => {
     this.setState({ isConnected: true });
-    table.players.push(this.state.playerName);
+    table.players.push(this.state.playerId);
     this.server.updateTable(table);
   }
 
@@ -37,14 +44,14 @@ export default class ClientController extends React.Component<Props, State> {
   }
 
   connect = ({ name, code }: { name: string, code: string }) => {
-    this.setState({ playerName: name, playerId: name }, () => {
+    this.setState({ playerId: name }, () => {
       // @ts-ignore
       this.server.connect(name, { onConnect: this.onConnected, onDisconnect: this.onDisconnected, onUpdate: this.onUpdate });
     });
   }
 
   disconnect = () => {
-    this.setState({ playerId: null });
+    this.setState({ playerId: '', table: null });
     if (this.state.playerId !== null)
       this.server.disconnect(this.state.playerId);
   }
@@ -67,39 +74,38 @@ export default class ClientController extends React.Component<Props, State> {
     return (
       <div className='w-full h-full'>
         {
-          this.state.playerId === null ?
+          this.state.playerId === '' || table === null ?
             <JoinGameDisplay
-              previousName={this.state.playerName}
+              previousId={this.state.playerId}
               onSubmit={(fields) => this.connect(fields)}
             />
             :
-            table === null ?
-              <div>Error</div>
+            !currentGame ?
+              <SetupGameDisplay
+                isDisconnected={!this.state.isConnected}
+                disconnect={() => this.disconnect()}
+                table={table}
+                onUpdate={(newTable: Table) => this.server.updateTable(newTable)}
+              />
               :
-              !currentGame ?
-                <SetupGameDisplay
+              currentGame.currentRound === 'showdown' ?
+                <ShowdownDisplay
                   isDisconnected={!this.state.isConnected}
-                  disconnect={() => this.disconnect()}
-                  table={table}
-                  onUpdate={(newTable: Table) => this.server.updateTable(newTable)}
                 />
                 :
-                currentGame.currentRound === 'showdown' ?
-                  <></>
-                  :
-                  <PrimaryGameDisplay
-                    currentRound={currentGame.currentRound}
-                    isDisconnected={!this.state.isConnected}
-                    isMyTurn={currentGame.currentPlayer === this.state.playerId}
-                    myStack={currentGame.gameStacks[this.state.playerId]}
-                    potSizes={currentGame.pots.map(p => p.amount)}
-                    position={extractPosition(currentGame, this.state.playerId)}
-                    actions={currentGame.currentPlayer === this.state.playerId ? currentGame.currentPlayerActions : []}
-                    betted={currentGame.currentBets[this.state.playerId] ?? 0}
-                    state={extractDisplayStateFromGame(currentGame, this.state.playerId)}
-                    disconnect={() => this.disconnect()}
-                    act={(a: PlayerAction) => this.onAction(a)}
-                  />
+                <PrimaryGameDisplay
+                  currentRound={currentGame.currentRound}
+                  isDisconnected={!this.state.isConnected}
+                  isMyTurn={currentGame.currentPlayer === this.state.playerId}
+                  myStack={currentGame.gameStacks[this.state.playerId]}
+                  potSizes={currentGame.pots.map(p => p.amount)}
+                  position={extractPosition(currentGame, this.state.playerId)}
+                  actions={currentGame.currentPlayer === this.state.playerId ? currentGame.currentPlayerActions : []}
+                  betted={currentGame.currentBets[this.state.playerId] ?? 0}
+                  state={extractDisplayStateFromGame(currentGame, this.state.playerId)}
+                  disconnect={() => this.disconnect()}
+                  act={(a: PlayerAction) => this.onAction(a)}
+                />
         }
       </div>
     )

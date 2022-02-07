@@ -1,12 +1,12 @@
 import React from 'react'
 
 interface Props {
-  previousName?: string;
+  previousId?: string;
   onSubmit: (fields: { name: string, code: string }) => void;
 }
 
-export default function JoinGameDisplay({ previousName, onSubmit }: Props) {
-  const [name, setName] = React.useState(previousName ?? '');
+export default function JoinGameDisplay({ previousId, onSubmit }: Props) {
+  const [name, setName] = React.useState(previousId ?? '');
   const [code, setCode] = React.useState('');
   return (
     <div>
