@@ -1,14 +1,23 @@
 import React from 'react';
 
+interface PotInfo {
+  currentStateText: string;
+  // You have folded
+  // Side pot: Not involved
+  // Waiting for xxx to select
+  // Waiting for xxx to confirm
+  // Please select showdown result
+  // There is a conflict: please re-select result
+  potIndex: number;
+  potAmount: number;
+  actionNeeded: boolean;
+  selectedOption?: 'win' | 'lose' | 'split';
+  hintedOption?: 'win' | 'lose' | 'split';
+}
+
 interface Props {
   isDisconnected: boolean;
-  // TODO: Add these back
-  // currentPotName: string;
-  // currentPotIndex: number;
-  // currentPotSize: boolean;
-  actionNeeded?: boolean;
-  // playersYetToAct: string[];
-  // actionPossible: boolean;
+  potsInfo: PotInfo[];
 
   // netGain: number;
   // myStackNew: number;
