@@ -91,6 +91,7 @@ export default class ClientController extends React.Component<Props, State> {
               currentGame.currentRound === 'showdown' ?
                 <ShowdownDisplay
                   isDisconnected={!this.state.isConnected}
+                  currentGame={currentGame}
                 />
                 :
                 <PrimaryGameDisplay
