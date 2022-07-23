@@ -1,32 +1,7 @@
-const WIN = 'win' as const;
-const LOSE = 'lose' as const;
-const SPLIT = 'split' as const;
-
-type WLSOption = typeof WIN | typeof LOSE | typeof SPLIT;
-
-
-function isConsistent(choices: WLSOption[], completed: boolean) {
-  const winCount = choices.filter(c => c === 'win').length;
-  const splitCount = choices.filter(c => c === 'split').length;
-  const loseCount = choices.filter(c => c === 'lose').length;
-
-  if (splitCount > 0)
-    if (winCount > 0) return false;
-
-  if (winCount > 1) return false;
-
-  if (completed) {
-    if (winCount + splitCount + loseCount <= 1) return false;
-    if (splitCount === 1) return false;
-    if (splitCount > 1 && winCount > 0) return false;
-    if (splitCount === 0 && winCount !== 1) return false;
-  }
-
-  return true;
-}
+import { WIN, LOSE, SPLIT, WLSOption, isConsistent } from './poker'
 
 function c(s: string): WLSOption[] {
-  return s.split('').map(x => ({ W: WIN, L: LOSE, S: SPLIT }[x]))
+  return s.split('').map(x => ({ W: WIN, L: LOSE, S: SPLIT }[x]!))
 }
 
 test('isConsistent with non-completed choices', () => {
@@ -78,3 +53,5 @@ test('isConsistent with completed choices', () => {
   expect(isConsistent(c('SLL'), true)).toBe(false);
   expect(isConsistent(c('SSLL'), true)).toBe(true);
 });
+
+export {};

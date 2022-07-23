@@ -49,22 +49,52 @@ interface GameInterface {
   currentBets: PlayerChipMap;
   settledQueue: PlayerId[];
   actQueue: PlayerId[];
-  winners: PlayerId[][];
+  potResults: Record<PlayerId, WLSOption>[];
   minimumBet: ChipAmount;
 }
-
-interface ResultOption {
-  potName: string;
-  potIndex: number;
-  potAmount: ChipAmount;
-  involvedPlayers: PlayerId[];
-  winners: PlayerId[];
-}
-
 
 interface ResultSummary {
   winnerChipMap: PlayerChipMap;
 }
+
+export const WIN = 'win' as const;
+export const LOSE = 'lose' as const;
+export const SPLIT = 'split' as const;
+
+export type WLSOption = typeof WIN | typeof LOSE | typeof SPLIT;
+
+export function isConsistent(choices: WLSOption[], completed: boolean) {
+  const winCount = choices.filter(c => c === 'win').length;
+  const splitCount = choices.filter(c => c === 'split').length;
+  const loseCount = choices.filter(c => c === 'lose').length;
+
+  if (splitCount > 0)
+    if (winCount > 0) return false;
+
+  if (winCount > 1) return false;
+
+  if (completed) {
+    if (winCount + splitCount + loseCount <= 1) return false;
+    if (splitCount === 1) return false;
+    if (splitCount > 1 && winCount > 0) return false;
+    if (splitCount === 0 && winCount !== 1) return false;
+  }
+
+  return true;
+}
+
+export function deriveHintedOption(others: WLSOption[], isLastOneToAct: boolean): WLSOption | undefined {
+  const possibleOptions: WLSOption[] = [];
+  if (isConsistent([...others, WIN], isLastOneToAct)) possibleOptions.push(WIN);
+  if (isConsistent([...others, LOSE], isLastOneToAct)) possibleOptions.push(LOSE);
+  if (isConsistent([...others, SPLIT], isLastOneToAct)) possibleOptions.push(SPLIT);
+
+  if (possibleOptions.length === 1)
+    return possibleOptions[0];
+  else
+    return undefined;
+}
+
 
 
 export function findPlayer(players: PlayerId[], button: PlayerId, type: 'utg' | 'sb' | 'bb'): PlayerId {
@@ -178,7 +208,7 @@ export class Table implements TableInterface {
       currentBets: { [sb]: this.smallBlindAmount, [bb]: this.bigBlindAmount },
       settledQueue: [],
       actQueue: generateQueueForRound(this.players, this.players, this.buttonPlayer, 'pre-flop'),
-      winners: [],
+      potResults: [],
       minimumBet: this.smallBlindAmount,
     });
   }
@@ -208,7 +238,7 @@ export class Game implements GameInterface {
   currentBets!: PlayerChipMap;
   settledQueue!: PlayerId[];
   actQueue!: PlayerId[];
-  winners!: PlayerId[][];
+  potResults!: Record<PlayerId, WLSOption>[];
   minimumBet!: ChipAmount;
 
   fromJSON(s: string) { Object.assign(this, JSON.parse(s)); };
@@ -240,43 +270,93 @@ export class Game implements GameInterface {
     return result;
   }
 
-  get resultOptions(): ResultOption[] {
-    if (this.pots.length === 1) {
-      return [{
-        potName: 'Pot',
-        potIndex: 0,
-        potAmount: this.pots[0].amount,
-        involvedPlayers: this.pots[0].players,
-        winners: [],
-      }];
-    }
+  getPotResultsForPlayer(playerId: PlayerId) {
+    if (this.currentRound !== 'showdown') throw new Error('Cannot get pot results showdown');
 
-    return this.pots.map((pot, i) => ({
-      potName: i === 0 ? 'Main Pot' : `Side Pot #${i}`,
-      potIndex: i,
-      potAmount: pot.amount,
-      involvedPlayers: pot.players,
-      winners: this.winners[i] ?? [],
-    }));
+    const foldedPlayers = this.allPlayers.filter(p => ![...this.actQueue, ...this.settledQueue].includes(p));
+
+    return this.potResults.map((potResult, index) => {
+      let text = '', choiceNeeded = false;
+      if (foldedPlayers.includes(playerId)) {
+        text = 'You folded';
+      } else if (!this.pots[index].players.includes(playerId)) {
+        text = 'Not involved';
+      } else if (this.pots[index].players.length === 1) {
+        if (this.pots[index].players[0] !== playerId) {
+          throw new Error('Should be handled in previous case');
+        }
+        text = 'You won the pot';
+      } else {
+        choiceNeeded = true;
+      }
+
+      if (!choiceNeeded)
+        return {
+          text,
+          choiceNeeded,
+          settled: this.isPotSettled(index),
+          potAmount: this.pots[index].amount,
+        };
+
+      const chosenOption = potResult[playerId];
+      const involvedPlayers = this.pots[index].players;
+      const allChoices = Object.values(potResult);
+      const everyonePicked = allChoices.length === involvedPlayers.length;
+      const settled = everyonePicked && isConsistent(allChoices, true);
+
+      text = '';
+      if (!chosenOption)
+        text = 'Please select an option';
+      else if (!everyonePicked)
+        text = 'Waiting for everyone involved to make a choice';
+      else if (!settled)
+        text = 'Please re-select pot result';
+
+
+      let hintedOption;
+      if (chosenOption) {
+        if (!settled && everyonePicked)
+          hintedOption = deriveHintedOption(allChoices, true);
+      } else {
+        hintedOption = deriveHintedOption(allChoices, involvedPlayers.length - allChoices.length === 1);
+      }
+      return {
+        text,
+        choiceNeeded,
+        settled,
+        chosenOption,
+        hintedOption,
+        potAmount: this.pots[index].amount,
+      }
+    });
   }
 
-  setResult(result: ResultOption) {
-    if (this.currentRound !== 'showdown')
-      throw new Error('Cannot set result while not in showdown stage');
-    const { potIndex, winners } = result;
-    const originalPot = this.pots[potIndex];
-    if (!originalPot) throw new Error('Unexpected value for potIndex');
-    for (const winner of winners)
-      if (!originalPot.players.includes(winner))
-        throw new Error('Validation failed: winner is not in players');
+  setPlayerResult(playerId: PlayerId, potIndex: number, wlsOption: WLSOption) {
+    if (this.currentRound !== 'showdown') throw new Error('Cannot set player result during showdown');
+    this.potResults[potIndex][playerId] = wlsOption;
+  }
 
-    this.winners[potIndex] = winners;
+  isPotSettled(index: number) {
+    const involvedPlayers = this.pots[index].players;
+    const allChoices = Object.values(this.potResults[index]);
+    const everyonePicked = allChoices.length === involvedPlayers.length;
+    const settled = everyonePicked && isConsistent(allChoices, true);
+    return settled;
+  }
+
+  isAllPotsSettled() {
+    for (let i = 0; i < this.pots.length; i++) {
+      if (!this.isPotSettled(i))
+        return false;
+    }
+    return true;
   }
 
   getResultSummary(): ResultSummary {
     const winnerChipMap: PlayerChipMap = {};
 
-    this.winners.forEach((winners, index) => {
+    this.potResults.forEach((potResult, index) => {
+      const winners = Object.entries(potResult).flatMap(([playerId, wls]) => wls !== LOSE ? playerId : []);
       const originalPot = this.pots[index];
       if (winners.length === 0) throw new Error('There must be winners');
       const winningAmount = originalPot.amount / winners.length;
@@ -294,6 +374,10 @@ export class Game implements GameInterface {
     if (this.actQueue.length === 0) throw new Error('Never');
 
     if (action.type === 'fold') {
+      // Remove this player from all pots
+      this.pots.forEach(pot => {
+        pot.players = pot.players.filter(p => p !== this.currentPlayer)
+      })
       this.actQueue.shift();
 
     } else if (action.type === 'check') {
@@ -338,9 +422,18 @@ export class Game implements GameInterface {
 
     const inGamePlayers = [...this.actQueue, ...this.settledQueue];
     const inGamePlayerCountWithPositiveStack = Object.entries(this.gameStacks).filter(([player, stack]) => inGamePlayers.includes(player) && stack > 0).length;
-    if (inGamePlayerCountWithPositiveStack === 1)
+    if (inGamePlayerCountWithPositiveStack === 1) {
+      const potSum = Object.values(this.currentBets).reduce((x, p) => x + p, 0);
+      this.pots[0].amount += potSum;
+      this.currentBets = {};
+
       this.currentRound = 'showdown';
+    }
     if (inGamePlayerCountWithPositiveStack < 1) throw new Error('Never');
+
+    if (this.currentRound === 'showdown') {
+      this.potResults = this.pots.map(() => ({}));
+    }
   }
 
   toString(): string {
@@ -432,7 +525,7 @@ export class PokerWebSocketGateway{
   private isLoggedIn: boolean = false;
   currentTableId = "";
   currentUserId = "";
-  
+
   login(userId: string, tableId: string){
     this.currentTableId = tableId;
     this.currentUserId = userId;

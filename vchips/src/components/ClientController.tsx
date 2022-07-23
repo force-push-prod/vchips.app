@@ -1,7 +1,7 @@
 import React from 'react'
 import PrimaryGameDisplay from './PrimaryGameDisplay'
 import JoinGameDisplay from './JoinGameDisplay'
-import { PlayerAction, PokerServer, Table, Game, findPlayer } from '../poker'
+import { PlayerAction, PokerServer, Table, Game, findPlayer, WLSOption } from '../poker'
 import SetupGameDisplay from './SetupGameDisplay'
 import ShowdownDisplay from './ShowdownDisplay'
 
@@ -21,11 +21,6 @@ export default class ClientController extends React.Component<Props, State> {
     isConnected: false,
     table: null,
   }
-
-  // constructor(props: Props) {
-  //   super(props);
-  //   this.state.playerId = props.debugPlayerId ?? '';
-  // }
 
   get isMyTurn() { return false; }
   get server() {
@@ -67,6 +62,13 @@ export default class ClientController extends React.Component<Props, State> {
     this.server.updateTable(this.state.table);
   }
 
+  onChooseWLS = (potIndex: number, action: WLSOption) => {
+    if (!this.state.table?.currentGame)
+      throw new Error('Unexpected undefined game');
+    this.state.table.currentGame.setPlayerResult(this.state.playerId, potIndex, action);
+    this.server.updateTable(this.state.table);
+  }
+
   render() {
     const { table } = this.state;
     const currentGame = table?.currentGame;
@@ -92,6 +94,8 @@ export default class ClientController extends React.Component<Props, State> {
                 <ShowdownDisplay
                   isDisconnected={!this.state.isConnected}
                   currentGame={currentGame}
+                  potInfos={currentGame.getPotResultsForPlayer(this.state.playerId)}
+                  onChooseWLS={this.onChooseWLS}
                 />
                 :
                 <PrimaryGameDisplay

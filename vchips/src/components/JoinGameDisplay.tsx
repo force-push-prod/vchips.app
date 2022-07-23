@@ -7,7 +7,7 @@ interface Props {
 
 export default function JoinGameDisplay({ previousId, onSubmit }: Props) {
   const [name, setName] = React.useState(previousId ?? '');
-  const [code, setCode] = React.useState('');
+  const [code, setCode] = React.useState('1');
   return (
     <div>
       <div className="m-3">
